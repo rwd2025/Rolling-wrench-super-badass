@@ -84,7 +84,93 @@ function overheadPerHour(){const hrs=Number($('monthlyHours')?.value||settings()
 function calcFinance(){const overhead=monthlyOverhead(), rate=Number($('financeRate').value||settings().laborRate||135), revenue=Number($('financeRevenue').value||0), goal=Number($('goal').value||0), hrs=overhead/rate, monthlyHours=Number($('monthlyHours')?.value||160), perHour=overhead/monthlyHours, goalHrs=goal/rate, profit=revenue-overhead; $('financeOut').innerHTML=`<div class="docHead"><div><b>Shop Finance Plan</b><br>Rolling Wrench Diesel</div><div>${new Date().toLocaleDateString()}</div></div><div class="docBox">Monthly overhead: <b>${money(overhead)}</b><br>Overhead per billable hour: <b>${money(perHour)}</b><br>Break-even billable hours @ ${money(rate)}/hr: <b>${hrs.toFixed(1)} hrs</b><br>Weekly break-even target: <b>${(hrs/4.33).toFixed(1)} hrs</b></div><div class="docBox">Revenue entered: ${money(revenue)}<br>Projected profit after overhead: <b>${money(profit)}</b><br>Revenue goal: ${money(goal)}<br>Hours for goal: ${goalHrs.toFixed(1)} hrs</div>`; return {overhead,perHour,profit};}
 function invoiceTotalsForFinance(){const h=Number($('iHours')?.value||0),r=Number($('iRate')?.value||settings().laborRate||135),parts=Number($('iParts')?.value||0),svc=Number($('iService')?.value||0),taxPct=Number($('iTax')?.value||0); const labor=h*r, sub=labor+parts+svc, tax=sub*taxPct/100,total=sub+tax; return {h,r,parts,svc,tax,total,labor};}
 function loadJobFinanceFromInvoice(){const t=invoiceTotalsForFinance(); if($('jobRevenue'))$('jobRevenue').value=t.total.toFixed(2); if($('jobLaborHours'))$('jobLaborHours').value=t.h||''; if($('jobLaborRate'))$('jobLaborRate').value=t.r||settings().laborRate; if($('jobPartsCost')&&!$('jobPartsCost').value)$('jobPartsCost').value=t.parts.toFixed(2); if($('jobOtherCost')&&!$('jobOtherCost').value)$('jobOtherCost').value='0'; toast('Loaded invoice numbers into job finance'); calcJobFinance();}
-function calcJobFinance(){const revenue=Number($('jobRevenue')?.value||0), partsCost=Number($('jobPartsCost')?.value||0), laborHours=Number($('jobLaborHours')?.value||0), laborRate=Number($('jobLaborRate')?.value||settings().laborRate||135), other=Number($('jobOtherCost')?.value||0), shopFlat=Number($('shopRecoveryFlat')?.value||0), shopPct=Number($('shopRecoveryPercent')?.value||settings().shopRecoveryPercent||0), pHours=Number($('partnerHours')?.value||0), pRate=Number($('partnerRate')?.value||settings().partnerRate||0), pFlat=Number($('partnerFlat')?.value||0), pPct=Number($('partnerPercent')?.value||settings().partnerPercent||0), mode=$('splitMode')?.value||'hourly'; const overheadHr=overheadPerHour()*laborHours, shopPay=shopFlat+(revenue*shopPct/100)+overheadHr, grossAfterCosts=revenue-partsCost-other-shopPay; let partnerPay=0; if(mode==='hourly')partnerPay=(pHours*pRate)+pFlat; else if(mode==='percent')partnerPay=Math.max(0,grossAfterCosts*pPct/100); partnerPay=Math.max(0,partnerPay); const jamesPay=grossAfterCosts-partnerPay; const margin=revenue?jamesPay/revenue*100:0; const status=jamesPay<0?'LOSING MONEY':margin<15?'LOW PROFIT':'GOOD JOB'; const cls=jamesPay<0?'bad':margin<15?'warn':'good'; const out={revenue,partsCost,other,shopPay,partnerPay,jamesPay,margin,status,laborHours,laborRate}; LS.set('lastJobFinance',out); if($('jobFinanceOut'))$('jobFinanceOut').innerHTML=`<div class="docHead"><div><b>Job Money Split</b><br>${safe(customerTitle())}<br>${safe(truckTitle())}</div><div><b class="${cls}">${status}</b><br>${new Date().toLocaleDateString()}</div></div><div class="docBox"><b>Revenue</b>: ${money(revenue)}<br><b>Parts cost</b>: ${money(partsCost)}<br><b>Other job cost</b>: ${money(other)}<br><b>Labor</b>: ${laborHours} hrs @ ${money(laborRate)}/hr</div><div class="docBox"><b>SHOP PAY / RECOVERY</b>: ${money(shopPay)}<br><small>Includes monthly overhead allocation + shop recovery setting.</small><br><b>PARTNER PAY</b>: ${money(partnerPay)}<br><b>JAMES PAY / OWNER PROFIT</b>: ${money(jamesPay)}</div><div class="docTotal">MARGIN AFTER SHOP + PARTNER: ${margin.toFixed(1)}%</div>`; return out;}
+function calcJobFinance(){
+  const revenue=Number($('jobRevenue')?.value||0);
+  const partsCost=Number($('jobPartsCost')?.value||0);
+  const laborHours=Number($('jobLaborHours')?.value||0);
+  const laborRate=Number($('jobLaborRate')?.value||settings().laborRate||135);
+  const other=Number($('jobOtherCost')?.value||0);
+  const shopFirstPct=Number($('shopFirstPercent')?.value||25);
+  const shopFirst=revenue*shopFirstPct/100;
+  const overheadHr=overheadPerHour()*laborHours;
+  const shopExpenseLines={
+    overheadRecovery:overheadHr,
+    tools:Number($('shopTools')?.value||0),
+    fuel:Number($('shopFuelJob')?.value||0),
+    oil:Number($('shopOil')?.value||0),
+    trash:Number($('shopTrash')?.value||0),
+    uniforms:Number($('shopUniforms')?.value||0),
+    supplies:Number($('shopSupplies')?.value||0),
+    reserve:Number($('shopReserve')?.value||0),
+    extraBills:Number($('shopExtraBills')?.value||0)
+  };
+  const shopExpenses=Object.values(shopExpenseLines).reduce((a,b)=>a+b,0);
+  const totalShop=Math.max(shopFirst, shopExpenses);
+  const pHours=Number($('partnerHours')?.value||0);
+  const pRate=Number($('partnerRate')?.value||settings().partnerRate||45);
+  const pFlat=Number($('partnerFlat')?.value||0);
+  const pPct=Number($('partnerPercent')?.value||40);
+  const jPct=Number($('jamesPercent')?.value||60);
+  const mode=$('splitMode')?.value||'percent';
+  const netAfterShopAndCosts=revenue-totalShop-partsCost-other;
+  let partnerPay=0, jamesPay=0;
+  if(mode==='hourly'){
+    partnerPay=Math.max(0,(pHours*pRate)+pFlat);
+    jamesPay=netAfterShopAndCosts-partnerPay;
+  }else if(mode==='percent'){
+    const totalPct=(pPct+jPct)||100;
+    partnerPay=Math.max(0,netAfterShopAndCosts*(pPct/totalPct));
+    jamesPay=netAfterShopAndCosts*(jPct/totalPct);
+  }else{
+    partnerPay=0;
+    jamesPay=netAfterShopAndCosts;
+  }
+  const totalDistributed=totalShop+partsCost+other+partnerPay+jamesPay;
+  const remaining=revenue-totalDistributed;
+  const margin=revenue?(jamesPay/revenue*100):0;
+  const status=jamesPay<0?'LOSING MONEY':margin<15?'LOW OWNER PAY':'GOOD JOB';
+  const cls=jamesPay<0?'bad':margin<15?'warn':'good';
+  const out={revenue,partsCost,other,shopFirstPct,shopFirst,shopExpenses,totalShop,partnerPay,jamesPay,remaining,margin,status,laborHours,laborRate,shopExpenseLines,mode};
+  LS.set('lastJobFinance',out);
+  const line=(name,value)=>`<div class="moneyLine"><span>${safe(name)}</span><b>${money(value)}</b></div>`;
+  const pctLine=(name,value)=>`<div class="moneyLine"><span>${safe(name)}</span><b>${Number(value||0).toFixed(1)}%</b></div>`;
+  if($('jobFinanceOut'))$('jobFinanceOut').innerHTML=`
+    <div class="docHead"><div><b>Job Money Closeout</b><br>${safe(customerTitle())}<br>${safe(truckTitle())}</div><div><b class="${cls}">${status}</b><br>${new Date().toLocaleDateString()}</div></div>
+    <div class="financeSummaryGrid">
+      <div><small>JOB TOTAL</small><b>${money(revenue)}</b></div>
+      <div><small>SHOP TOTAL</small><b>${money(totalShop)}</b></div>
+      <div><small>JAMES PAY</small><b>${money(jamesPay)}</b></div>
+      <div><small>PARTNER PAY</small><b>${money(partnerPay)}</b></div>
+    </div>
+    <div class="docBox"><h3>1. Shop income comes off the top</h3>
+      ${pctLine('Shop first percentage',shopFirstPct)}
+      ${line('Shop first off top',shopFirst)}
+      ${line('Monthly overhead recovery for this job',overheadHr)}
+      ${line('Tools / equipment',shopExpenseLines.tools)}
+      ${line('Fuel',shopExpenseLines.fuel)}
+      ${line('Oil / fluids',shopExpenseLines.oil)}
+      ${line('Trash / disposal',shopExpenseLines.trash)}
+      ${line('Uniforms / safety',shopExpenseLines.uniforms)}
+      ${line('Shop supplies',shopExpenseLines.supplies)}
+      ${line('Shop reserve / growth',shopExpenseLines.reserve)}
+      ${line('Extra shop bill pay',shopExpenseLines.extraBills)}
+      <div class="moneyLine total"><span>Total to shop / business</span><b>${money(totalShop)}</b></div>
+    </div>
+    <div class="docBox"><h3>2. Direct job costs</h3>
+      ${line('Actual parts cost',partsCost)}
+      ${line('Card fees / misc job costs',other)}
+      ${line('Remaining after shop + direct costs',netAfterShopAndCosts)}
+    </div>
+    <div class="docBox"><h3>3. Employee / owner / partner pay</h3>
+      ${mode==='hourly'?line('Partner hourly/flat pay',partnerPay):pctLine('Partner split percent',pPct)}
+      ${mode==='percent'?pctLine('James split percent',jPct):''}
+      ${line('Partner pay',partnerPay)}
+      ${line('James / owner pay',jamesPay)}
+      ${line('Undistributed remaining',remaining)}
+    </div>
+    <div class="docTotal">SHOP ${money(totalShop)} • JAMES ${money(jamesPay)} • PARTNER ${money(partnerPay)}</div>`;
+  return out;
+}
 async function saveJobFinance(){const f=calcJobFinance(); const list=LS.get('job_finance',[]); const row={...f,customer:customerTitle(),truck:truckTitle(),vin:activeTruck().vin||'',created_at:new Date().toISOString()}; list.unshift(row); LS.set('job_finance',list); try{await saveRow('job_finance',row); toast('Job finance saved to Supabase');}catch(e){toast('Job finance saved locally only');}}
 function clearFinance(){['fuel','software','goal','financeRevenue','jobRevenue','jobPartsCost','jobLaborHours','partnerHours','partnerFlat','jobOtherCost','shopRecoveryFlat'].forEach(id=>{if($(id))$(id).value=''}); if($('financeOut'))$('financeOut').innerHTML=''; if($('jobFinanceOut'))$('jobFinanceOut').innerHTML=''}
 function saveSettings(){const s={...settings(),theme:$('theme').value,bgStyle:$('bgStyle').value,largeText:$('largeText').checked,simpleMode:$('simpleMode').checked,reducedMotion:$('reducedMotion').checked,backendUrl:$('backendUrl').value,supabaseUrl:$('supabaseUrl').value,supabaseKey:$('supabaseKey').value}; LS.set('settings',s); applySettings(false); toast('Settings saved')}
