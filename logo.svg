@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5cff6d"/><stop offset="0.45" stop-color="#15b84a"/><stop offset="1" stop-color="#08351d"/></linearGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+  <rect width="512" height="512" rx="92" fill="#020604"/>
+  <path d="M256 28 456 104v138c0 112-76 196-200 242C132 438 56 354 56 242V104L256 28z" fill="url(#g)" stroke="#e8ffe9" stroke-width="10" filter="url(#glow)"/>
+  <path d="M138 173h60l29 138 45-138h54l44 138 31-138h53l-58 220h-58l-39-125-39 125h-60l-62-220z" fill="#061008" stroke="#fff" stroke-width="6"/>
+  <path d="M126 414h260" stroke="#fff" stroke-width="18" stroke-linecap="round"/>
+  <text x="256" y="102" text-anchor="middle" font-family="Arial Black,Arial" font-size="42" fill="#fff">RW</text>
+</svg>
